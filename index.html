@@ -1,1 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AI Video Creator by Ben</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    .glass { background: rgba(255,255,255,0.1); backdrop-filter: blur(10px); border: 1px solid rgba(255,255,255,0.2); }
+    .mono { font-family: monospace; }
+  </style>
+</head>
+<body class="bg-gradient-to-br from-purple-900 to-blue-900 text-white min-h-screen p-6">
 
+  <h1 class="text-3xl font-bold text-center mb-2">AI Video Creator + Chatbot</h1>
+  <p class="text-center mb-6">by <strong>Ben</strong> – All in One File</p>
+
+  <div class="max-w-6xl mx-auto grid lg:grid-cols-3 gap-6">
+    
+    <!-- Video Controls -->
+    <div class="space-y-4">
+      <input id="topic" class="w-full p-3 rounded glass" placeholder="Topic" value="Smart Bag">
+      <div class="grid grid-cols-2 gap-3">
+        <input id="duration" type="number" value="30" min="10" max="60" class="p-2 rounded glass text-center">
+        <select id="style" class="p-2 rounded glass">
+          <option>Professional</option>
+          <option>Fun</option>
+        </select>
+      </div>
+      <button id="genScript" class="w-full py-3 bg-purple-600 rounded font-bold">Generate Script</button>
+      <button id="genVideo" class="w-full py-3 bg-green-600 rounded font-bold">Generate Video</button>
+      <div id="log" class="glass p-3 h-24 overflow-auto mono text-xs bg-black/30"></div>
+    </div>
+
+    <!-- Chatbot -->
+    <div class="space-y-4">
+      <div class="glass p-4 rounded">
+        <h3 class="font-bold mb-2">Grok Chatbot</h3>
+        <input id="chatInput" class="w-full p-2 rounded bg-white/10 text-sm mb-2" placeholder="Ask Grok...">
+        <button id="sendChat" class="w-full py-2 bg-blue-600 rounded text-sm">Send</button>
+      </div>
+      <div id="chatMessages" class="glass h-48 overflow-auto mono text-xs p-2 bg-black/30 rounded space-y-1"></div>
+    </div>
+
+    <!-- Preview -->
+    <div class="space-y-4">
+      <textarea id="script" class="w-full h-32 p-3 rounded glass mono text-sm" placeholder="Script..."></textarea>
+      <div id="videoBox" class="bg-black rounded-lg aspect-video flex items-center justify-center">
+        <p class="text-gray-400">Video here</p>
+      </div>
+      <a id="download" class="hidden w-full text-center py-2 bg-green-600 rounded" download>Download MP4</a>
+    </div>
+  </div>
+
+  <script>
+    const $ = id => document.getElementById(id);
+    const log = (msg, color = 'text-purple-300') => {
+      $('log').innerHTML += `<div class="${color}">[${new Date().toLocaleTimeString()}] ${msg}</div>`;
+      $('log').scrollTop = $('log').scrollHeight;
+    };
+
+    // === YOUR KEY (This is a WRONG key – will show error) ===
+    const XAI_KEY = 'xai-cLEGYl1J6TQeQBxH34PB2Zb9nOOZogW3H7sBd9dwtNEHACm8reDSpbbwe7MnS7KPykLzkAPr9DNVsACC';
+
+    // --- VIDEO SCRIPT ---
+    $('genScript').onclick = async () => {
+      log('Generating script...');
+      try {
+        const res = await fetch('https://api.x.ai/v1/chat/completions', {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${XAI_KEY}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            model: 'grok-3-mini',
+            messages: [{ role: 'user', content: `Short ${$('duration').value}s script about "${$('topic').value}". ${$('style').value} style. One line per subtitle.` }],
+            max_tokens: 200
+          })
+        });
+        if (!res.ok) throw new Error('Invalid API key or network error');
+        const data = await res.json();
+        $('script').value = data.choices[0].message.content.trim();
+        log('Script ready!', 'text-green-400');
+      } catch (e) {
+        $('script').value = 'ERROR: Invalid API key. Go to console.x.ai → API Keys → Create new key.';
+        log('Failed: Wrong key', 'text-red-400');
+      }
+    };
+
+    // --- VIDEO GENERATION (Demo) ---
+    $('genVideo').onclick = async () => {
+      if (!$('script').value.includes('ERROR') && !$('script').value) return alert('Generate script first');
+      log('Creating demo video...');
+      $('videoBox').innerHTML = '<p>Processing...</p>';
+      setTimeout(() => {
+        $('videoBox').innerHTML = `<video controls class="w-full h-full rounded" src="https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4"></video>`;
+        $('download').href = 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4';
+        $('download').classList.remove('hidden');
+        log('Demo video ready!', 'text-green-400');
+      }, 1500);
+    };
+
+    // --- CHATBOT ---
+    $('sendChat').onclick = async () => {
+      const msg = $('chatInput').value.trim();
+      if (!msg) return;
+      $('chatMessages').innerHTML += `<div><strong>You:</strong> ${msg}</div>`;
+      $('chatInput').value = '';
+      const respEl = document.createElement('div');
+      respEl.innerHTML = `<strong>Grok:</strong> <span id="resp">Thinking...</span>`;
+      $('chatMessages').appendChild(respEl);
+      $('chatMessages').scrollTop = $('chatMessages').scrollHeight;
+
+      try {
+        const res = await fetch('https://api.x.ai/v1/chat/completions', {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${XAI_KEY}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            model: 'grok-3-mini',
+            messages: [{ role: 'user', content: msg }],
+            max_tokens: 300
+          })
+        });
+        if (!res.ok) throw new Error('Invalid key');
+        const data = await res.json();
+        $('resp').textContent = data.choices[0].message.content.trim();
+      } catch (e) {
+        $('resp').textContent = 'ERROR: Invalid API key. Get a real one from console.x.ai';
+      }
+    };
+  </script>
+</body>
+</html>
